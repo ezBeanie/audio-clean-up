@@ -12,6 +12,9 @@ dotenv.config({ path: '../.env.local', override: true });
 const app = express();
 const router = express.Router();
 const PORT = process.env.SERVER_PORT || 8080;
+const ALLOWED_AUDIO_TYPES = ['.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a'];
+const ALLOWED_VIDEO_TYPES = ['.mp4', '.mov', '.mkv', '.avi'];
+const ALLOWED_FILE_TYPES = [...ALLOWED_AUDIO_TYPES, ...ALLOWED_VIDEO_TYPES];
 
 const processingQueue = [];
 let separationRunning = false;
@@ -22,33 +25,35 @@ const upload = multer({ dest: 'uploads/' });
 app.use(express.static(path.join(__dirname, '../client/dist')));
 app.use('/api', router);
 
-router.post('/upload-audio', upload.array('audioFiles'), async (req, res) => {
+router.post('/separate-audios', upload.array('files[]'), async (req, res) => {
   if (!req.files || req.files.length === 0) {
-    return res.status(400).json({ error: 'No audio files uploaded' });
+    return res.status(400).json({ error: 'No video or audio files uploaded under files[] field.' });
   }
 
   for (const file of req.files) {
     try {
       const ext = path.extname(file.originalname).toLowerCase();
-      if (!['.wav', '.mp3', '.flac', '.aac', '.ogg'].includes(ext)) {
+      if (!ALLOWED_FILE_TYPES.includes(ext)) {
+        fs.unlinkSync(file.path);
         return res
           .status(400)
           .json({ error: `${file.originalname} is not a supported audio file.` });
       }
 
-      await enqueueFileForProcessing(file);
+      enqueueFileForProcessing(file, ALLOWED_AUDIO_TYPES.includes(ext));
     } catch (error) {
       console.error('Error processing file:', file.originalname, error);
       return res.status(500).json({ error: `Error processing file: ${file.originalname}` });
     }
   }
 
-  res.status(200).json({ message: 'Files are being processed' });
+  res.status(200).json({ message: 'Files uploaded. Processing started.' });
 });
 
-async function enqueueFileForProcessing(file) {
+function enqueueFileForProcessing(file, isAudio = false) {
+  console.log('➕ Enqueuing file for processing:', file.originalname);
   processingQueue.push(file);
-  if (!separationRunning) await processQueue();
+  if (!separationRunning) processQueue();
 }
 
 // Background processor loop

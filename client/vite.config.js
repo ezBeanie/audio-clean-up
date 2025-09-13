@@ -5,7 +5,6 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '../.env' });
 dotenv.config({ path: '../.env.local', override: true });
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
   server: {
